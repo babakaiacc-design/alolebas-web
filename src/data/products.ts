@@ -49,6 +49,43 @@ export function isLight(hex: string) {
 
 export const getProduct = (id: number) => PRODUCTS.find((p) => p.id === id);
 
+/* ---------------- search helpers ---------------- */
+const STOPWORDS = new Set([
+  "یک", "یه", "می‌خوام", "میخوام", "می", "خوام", "برای", "با", "و", "رو", "را",
+  "که", "این", "اون", "آن", "تا", "از", "به", "دنبال", "میگردم", "می‌گردم", "لطفا", "لطفاً",
+]);
+
+export function searchProducts(q: string): Product[] {
+  const s = q.trim();
+  if (!s) return PRODUCTS;
+  const tokens = s
+    .replace(/[؟?.,!،]/g, " ")
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length > 1 && !STOPWORDS.has(t));
+  if (tokens.length === 0) return PRODUCTS;
+  return PRODUCTS.filter((p) => {
+    const hay = `${p.name} ${p.category} ${p.colorName} ${p.material} ${p.seller}`;
+    return tokens.some((t) => hay.includes(t));
+  });
+}
+
+export function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace("#", "");
+  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+}
+
+export function colorDistance(a: string, b: string): number {
+  const [r1, g1, b1] = hexToRgb(a);
+  const [r2, g2, b2] = hexToRgb(b);
+  return Math.sqrt((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2);
+}
+
+/** products sorted by how close their color is to the given hex (nearest first) */
+export function productsByColor(hex: string): Product[] {
+  return [...PRODUCTS].sort((a, b) => colorDistance(a.colorHex, hex) - colorDistance(b.colorHex, hex));
+}
+
 export function relatedProducts(p: Product, n = 3) {
   const same = PRODUCTS.filter((x) => x.id !== p.id && x.category === p.category);
   const others = PRODUCTS.filter((x) => x.id !== p.id && x.category !== p.category);

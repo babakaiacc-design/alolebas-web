@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import {
   Search,
@@ -29,8 +29,15 @@ const MODES = [
 
 function SearchBox() {
   const [mode, setMode] = useState<(typeof MODES)[number]["id"]>("text");
+  const [q, setQ] = useState("");
+  const navigate = useNavigate();
   const active = MODES.find((m) => m.id === mode)!;
   const ActiveIcon = active.icon;
+
+  function go() {
+    if (mode === "text") navigate(q.trim() ? `/search?q=${encodeURIComponent(q.trim())}` : "/search");
+    else navigate(`/search?mode=${mode}`);
+  }
 
   return (
     <div
@@ -67,9 +74,20 @@ function SearchBox() {
         style={{ border: `1px solid ${C.border}` }}
       >
         <ActiveIcon size={19} style={{ color: C.teal }} aria-hidden />
-        <span className="flex-1 truncate text-sm" style={{ color: "#9a968e" }}>
-          {active.placeholder}
-        </span>
+        {mode === "text" ? (
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && go()}
+            placeholder={active.placeholder}
+            className="al-input flex-1"
+            style={{ border: "none", padding: 0, background: "transparent" }}
+          />
+        ) : (
+          <button onClick={go} className="flex-1 truncate text-right text-sm" style={{ color: "#9a968e" }}>
+            {active.placeholder}
+          </button>
+        )}
         <span
           className="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium"
           style={{ background: C.lightTeal, color: C.tealInk, border: "1px solid #9fe1cb" }}
@@ -79,13 +97,13 @@ function SearchBox() {
         </span>
       </div>
 
-      <Link
-        to="/search"
+      <button
+        onClick={go}
         className="al-pulse flex h-12 w-full items-center justify-center rounded-xl text-base font-bold text-white"
         style={{ background: C.gold }}
       >
         از دستیار بپرس
-      </Link>
+      </button>
     </div>
   );
 }

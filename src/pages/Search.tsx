@@ -1,17 +1,34 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Search, Mic, Camera, MapPin, Clock, SlidersHorizontal, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode, type ChangeEvent } from "react";
+import { useSearchParams } from "react-router-dom";
+import { Search, Mic, Camera, MapPin, Clock, SlidersHorizontal, Sparkles, X, Upload } from "lucide-react";
 import { C, CONTAINER, Reveal, SiteHeader, SiteFooter } from "../components/site-chrome";
 import { ProductCard } from "../components/product-card";
-import { PRODUCTS, CATEGORIES, NEAR_KM, fa, money } from "../data/products";
+import { PRODUCTS, CATEGORIES, NEAR_KM, fa, money, searchProducts, productsByColor } from "../data/products";
+import { dominantColorFromFile } from "../lib/imageColor";
 
 const MODES = [
   { id: "text", label: "متنی", icon: Search },
   { id: "voice", label: "صوتی", icon: Mic },
   { id: "image", label: "تصویری", icon: Camera },
 ] as const;
+type Mode = (typeof MODES)[number]["id"];
 
 export default function SearchPage() {
-  const [mode, setMode] = useState<(typeof MODES)[number]["id"]>("text");
+  const [params, setParams] = useSearchParams();
+  const [mode, setMode] = useState<Mode>((params.get("mode") as Mode) || "text");
+  const [q, setQ] = useState(params.get("q") || "");
+
+  // voice
+  const [listening, setListening] = useState(false);
+  const [voiceMsg, setVoiceMsg] = useState<string | null>(null);
+  const recRef = useRef<any>(null);
+
+  // image
+  const [imgColor, setImgColor] = useState<string | null>(null);
+  const [imgPreview, setImgPreview] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // filters
   const [cat, setCat] = useState("همه");
   const [channel, setChannel] = useState<"all" | "retail" | "wholesale">("all");
   const [maxPrice, setMaxPrice] = useState(6000000);
@@ -20,10 +37,76 @@ export default function SearchPage() {
 
   useEffect(() => {
     document.title = "جستجو | الولباس";
+    window.scrollTo(0, 0);
+    if ((params.get("mode") as Mode) === "voice") startVoice();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // keep the URL query in sync (shareable)
+  useEffect(() => {
+    const next: Record<string, string> = {};
+    if (q.trim()) next.q = q.trim();
+    if (mode !== "text") next.mode = mode;
+    setParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, mode]);
+
+  function startVoice() {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    setMode("voice");
+    if (!SR) {
+      setVoiceMsg("مرورگرت از جستجوی صوتی پشتیبانی نمی‌کند. با کروم امتحان کن یا متنی بنویس.");
+      return;
+    }
+    try {
+      const rec = new SR();
+      rec.lang = "fa-IR";
+      rec.interimResults = false;
+      rec.maxAlternatives = 1;
+      rec.onstart = () => {
+        setListening(true);
+        setVoiceMsg("گوش می‌دم… حرف بزن.");
+      };
+      rec.onerror = () => {
+        setListening(false);
+        setVoiceMsg("صدایی نشنیدم. دوباره بزن و واضح‌تر بگو.");
+      };
+      rec.onend = () => setListening(false);
+      rec.onresult = (e: any) => {
+        const t = e.results[0][0].transcript as string;
+        setQ(t);
+        setVoiceMsg(`شنیدم: «${t}»`);
+        setMode("text");
+      };
+      recRef.current = rec;
+      rec.start();
+    } catch {
+      setListening(false);
+      setVoiceMsg("جستجوی صوتی در دسترس نیست.");
+    }
+  }
+
+  async function onFile(e: ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setImgPreview(URL.createObjectURL(f));
+    try {
+      const hex = await dominantColorFromFile(f);
+      setImgColor(hex);
+    } catch {
+      setImgColor("#888888");
+    }
+  }
+
+  function clearImage() {
+    setImgColor(null);
+    setImgPreview(null);
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
   const results = useMemo(() => {
-    let list = PRODUCTS.filter((p) => {
+    let base = mode === "image" && imgColor ? productsByColor(imgColor) : searchProducts(q);
+    let list = base.filter((p) => {
       if (cat !== "همه" && p.category !== cat) return false;
       if (channel === "retail" && p.wholesale) return false;
       if (channel === "wholesale" && !p.wholesale) return false;
@@ -31,10 +114,19 @@ export default function SearchPage() {
       if (nearOnly && p.distance > NEAR_KM) return false;
       return true;
     });
-    if (sort === "near") list = [...list].sort((a, b) => a.distance - b.distance);
-    else if (sort === "cheap") list = [...list].sort((a, b) => a.price - b.price);
+    if (mode !== "image") {
+      if (sort === "near") list = [...list].sort((a, b) => a.distance - b.distance);
+      else if (sort === "cheap") list = [...list].sort((a, b) => a.price - b.price);
+    }
     return list;
-  }, [cat, channel, maxPrice, nearOnly, sort]);
+  }, [q, mode, imgColor, cat, channel, maxPrice, nearOnly, sort]);
+
+  const summary =
+    mode === "image" && imgColor
+      ? "جستجو با تصویر — نزدیک‌ترین رنگ‌ها"
+      : q.trim()
+        ? `نتایج برای «${q.trim()}»`
+        : "همه‌ی محصولات";
 
   return (
     <div style={{ background: C.cream, color: C.dark, minHeight: "100vh" }}>
@@ -59,6 +151,7 @@ export default function SearchPage() {
             className="mx-auto w-full max-w-2xl rounded-2xl p-3"
             style={{ background: "#fff", boxShadow: "0 24px 60px -30px rgba(0,0,0,.5)" }}
           >
+            {/* tabs */}
             <div
               className="mb-3 grid grid-cols-3 gap-1.5 rounded-xl p-1.5"
               style={{ background: "#f4f1eb" }}
@@ -73,7 +166,10 @@ export default function SearchPage() {
                     key={m.id}
                     role="tab"
                     aria-selected={on}
-                    onClick={() => setMode(m.id)}
+                    onClick={() => {
+                      if (m.id === "voice") startVoice();
+                      else setMode(m.id);
+                    }}
                     className="flex items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium transition-colors"
                     style={{ background: on ? C.indigo : "transparent", color: on ? "#fff" : C.muted }}
                   >
@@ -83,30 +179,112 @@ export default function SearchPage() {
                 );
               })}
             </div>
-            <div
-              className="flex h-12 items-center gap-3 rounded-xl px-3"
-              style={{ border: `1px solid ${C.border}` }}
-            >
-              <Search size={19} style={{ color: C.teal }} aria-hidden />
-              <span className="flex-1 truncate text-sm" style={{ color: C.dark }}>
-                شلوار جین سبز
-              </span>
-              <span
-                className="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium"
-                style={{ background: C.lightTeal, color: C.tealInk, border: "1px solid #9fe1cb" }}
+
+            {/* TEXT mode */}
+            {mode === "text" && (
+              <div
+                className="flex h-12 items-center gap-3 rounded-xl px-3"
+                style={{ border: `1px solid ${C.border}` }}
               >
-                <MapPin size={13} aria-hidden />
-                تهران
-              </span>
-            </div>
+                <Search size={19} style={{ color: C.teal }} aria-hidden />
+                <input
+                  autoFocus
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="مثلاً: شلوار جین سبز"
+                  className="al-input flex-1"
+                  style={{ border: "none", padding: 0, background: "transparent" }}
+                />
+                {q && (
+                  <button onClick={() => setQ("")} aria-label="پاک کردن" style={{ color: C.muted }}>
+                    <X size={16} aria-hidden />
+                  </button>
+                )}
+                <span
+                  className="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium"
+                  style={{ background: C.lightTeal, color: C.tealInk, border: "1px solid #9fe1cb" }}
+                >
+                  <MapPin size={13} aria-hidden />
+                  تهران
+                </span>
+              </div>
+            )}
+
+            {/* VOICE mode */}
+            {mode === "voice" && (
+              <div className="flex flex-col items-center gap-3 rounded-xl py-6" style={{ border: `1px solid ${C.border}` }}>
+                <button
+                  onClick={startVoice}
+                  aria-label="شروع ضبط صدا"
+                  className={listening ? "al-pulse" : ""}
+                  style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: 9999,
+                    background: listening ? C.gold : C.teal,
+                    color: "#fff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Mic size={26} aria-hidden />
+                </button>
+                <span className="text-sm" style={{ color: voiceMsg ? C.indigo : C.muted }}>
+                  {voiceMsg || "بزن و بگو چی می‌خوای"}
+                </span>
+              </div>
+            )}
+
+            {/* IMAGE mode */}
+            {mode === "image" && (
+              <div className="rounded-xl p-4" style={{ border: `1px solid ${C.border}` }}>
+                <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
+                {imgPreview ? (
+                  <div className="flex items-center gap-4">
+                    <img src={imgPreview} alt="نمونه" className="h-20 w-20 rounded-xl object-cover" />
+                    <div className="flex-1">
+                      <div className="mb-1 flex items-center gap-2 text-sm font-medium" style={{ color: C.indigo }}>
+                        رنگ غالب:
+                        {imgColor && (
+                          <span
+                            className="inline-block h-5 w-5 rounded-full"
+                            style={{ background: imgColor, border: `1px solid ${C.border}` }}
+                          />
+                        )}
+                      </div>
+                      <div className="text-xs" style={{ color: C.muted }}>
+                        نزدیک‌ترین محصولات را بر اساس رنگ پیدا کردیم.
+                      </div>
+                    </div>
+                    <button onClick={clearImage} aria-label="حذف عکس" style={{ color: C.muted }}>
+                      <X size={18} aria-hidden />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    className="flex w-full flex-col items-center gap-2 rounded-lg py-6"
+                    style={{ background: C.cream, border: `1px dashed ${C.border}` }}
+                  >
+                    <Upload size={24} style={{ color: C.teal }} aria-hidden />
+                    <span className="text-sm font-medium" style={{ color: C.indigo }}>
+                      عکس لباس را آپلود کن
+                    </span>
+                    <span className="text-xs" style={{ color: C.muted }}>
+                      رنگش را می‌خوانیم و مشابه‌ها را می‌آوریم
+                    </span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
-          <div
-            className="mt-4 flex items-center justify-center gap-2 text-sm"
-            style={{ color: "rgba(255,255,255,.6)" }}
-          >
+          <div className="mt-4 flex items-center justify-center gap-2 text-sm" style={{ color: "rgba(255,255,255,.6)" }}>
             <Sparkles size={15} style={{ color: C.gold }} aria-hidden />
-            <span>{fa(results.length)} نتیجه پیدا شد — نزدیک‌ترین تأمین‌کننده‌ها اول</span>
+            <span>
+              {fa(results.length)} نتیجه — {summary}
+            </span>
           </div>
         </div>
       </section>
@@ -209,30 +387,32 @@ export default function SearchPage() {
               <span className="text-sm" style={{ color: C.muted }}>
                 {fa(results.length)} کالا
               </span>
-              <div className="flex items-center gap-2 text-sm">
-                <span style={{ color: C.muted }}>مرتب‌سازی:</span>
-                {([
-                  ["near", "نزدیک‌ترین"],
-                  ["cheap", "ارزان‌ترین"],
-                  ["popular", "محبوب‌ترین"],
-                ] as const).map(([val, label]) => {
-                  const on = sort === val;
-                  return (
-                    <button
-                      key={val}
-                      onClick={() => setSort(val)}
-                      className="rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
-                      style={{
-                        background: on ? C.teal : "#fff",
-                        color: on ? "#fff" : C.dark,
-                        border: `1px solid ${on ? C.teal : C.border}`,
-                      }}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
+              {mode !== "image" && (
+                <div className="flex items-center gap-2 text-sm">
+                  <span style={{ color: C.muted }}>مرتب‌سازی:</span>
+                  {([
+                    ["near", "نزدیک‌ترین"],
+                    ["cheap", "ارزان‌ترین"],
+                    ["popular", "محبوب‌ترین"],
+                  ] as const).map(([val, label]) => {
+                    const on = sort === val;
+                    return (
+                      <button
+                        key={val}
+                        onClick={() => setSort(val)}
+                        className="rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
+                        style={{
+                          background: on ? C.teal : "#fff",
+                          color: on ? "#fff" : C.dark,
+                          border: `1px solid ${on ? C.teal : C.border}`,
+                        }}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {results.length === 0 ? (
@@ -240,7 +420,7 @@ export default function SearchPage() {
                 className="rounded-2xl p-12 text-center text-sm"
                 style={{ background: "#fff", border: `1px solid ${C.border}`, color: C.muted }}
               >
-                چیزی با این فیلترها پیدا نشد. کمی فیلترها را باز کن.
+                چیزی پیدا نشد. یک کلمه‌ی دیگر امتحان کن یا فیلترها را باز کن.
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
