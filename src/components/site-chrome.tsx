@@ -90,7 +90,7 @@ export function SiteHeader() {
             style={{ color: "rgba(255,255,255,.65)" }}
           >
             <Link to="/search">جستجو</Link>
-            <a href="/#gateways">درگاه‌ها</a>
+            <Link to="/amin-kharid">امین خرید</Link>
             <a href="/#services">خدمات</a>
             <a href="/#pillars">چرا الولباس</a>
           </nav>

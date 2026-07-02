@@ -341,10 +341,18 @@ function ProductView({ product: p }: { product: Product }) {
                 با امین خرید، خیالت راحت
               </h2>
             </div>
-            <p className="text-sm leading-7" style={{ color: "#2a4a2a" }}>
+            <p className="mb-4 text-sm leading-7" style={{ color: "#2a4a2a" }}>
               پولت پیش الولباس می‌ماند و تا وقتی کالا را نگرفتی و تأیید نکردی، به فروشنده
               پرداخت نمی‌شود. اگر با چیزی که دیدی فرق داشت، پولت برمی‌گردد — بدون اما و اگر.
             </p>
+            <Link
+              to="/amin-kharid"
+              className="inline-flex items-center gap-1.5 text-sm font-bold"
+              style={{ color: C.sage }}
+            >
+              امین خرید چطور کار می‌کند؟
+              <ChevronLeft size={15} aria-hidden />
+            </Link>
           </div>
         </Reveal>
       </section>
