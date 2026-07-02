@@ -1,0 +1,99 @@
+@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700;900&family=Poppins:wght@600;700&display=swap');
+@import "tailwindcss";
+
+/* ============================================================
+   AloLebas brand layer — light, RTL, brand identity (brand guide v2)
+   ============================================================ */
+:root {
+  --al-indigo: #1b2a4a;
+  --al-indigo-2: #0f1a2e;
+  --al-teal: #2a9d8f;
+  --al-teal-ink: #0f6e56;
+  --al-gold: #c8963e;
+  --al-cream: #faf7f2;
+  --al-sage: #5b8c5a;
+  --al-dark: #2d2d2d;
+  --al-border: #e0dcd5;
+  --al-light-teal: #e6f5f3;
+  --al-light-gold: #fbf5e9;
+  --al-muted: #6b6b6b;
+}
+
+html.al {
+  background-color: var(--al-cream);
+  color: var(--al-dark);
+  color-scheme: light;
+  scroll-behavior: smooth;
+}
+
+html.al body {
+  background-color: var(--al-cream);
+  color: var(--al-dark);
+  font-family: "Vazirmatn", ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  margin: 0;
+}
+
+.al-font-en { font-family: "Poppins", sans-serif; }
+
+/* Signature motion ------------------------------------------------ */
+@keyframes al-float {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(24px, -30px, 0) scale(1.08); }
+}
+@keyframes al-float-2 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-30px, 22px, 0) scale(1.12); }
+}
+@keyframes al-drift {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+@keyframes al-pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(200, 150, 62, 0.45); }
+  70% { box-shadow: 0 0 0 14px rgba(200, 150, 62, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(200, 150, 62, 0); }
+}
+
+.al-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(50px);
+  will-change: transform;
+  pointer-events: none;
+}
+.al-reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.al-reveal.al-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+.al-marquee-mask {
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+.al-marquee-track {
+  animation: al-drift 36s linear infinite;
+}
+.al-card-lift {
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.35s ease;
+}
+.al-card-lift:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 18px 40px -18px rgba(27, 42, 74, 0.35);
+}
+.al-pulse { animation: al-pulse-ring 2.6s ease-out infinite; }
+.al-pulse:hover { filter: brightness(1.05); }
+
+a { text-decoration: none; color: inherit; }
+
+@media (prefers-reduced-motion: reduce) {
+  html.al { scroll-behavior: auto; }
+  .al-orb { animation: none !important; }
+  .al-reveal { opacity: 1; transform: none; transition: none; }
+  .al-marquee-track, .al-pulse { animation: none !important; }
+}
