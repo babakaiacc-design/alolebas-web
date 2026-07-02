@@ -96,10 +96,12 @@ export function SiteHeader() {
           </nav>
         </div>
         <div className="flex items-center gap-4" style={{ color: "rgba(255,255,255,.8)" }}>
-          <span className="hidden items-center gap-1.5 text-sm sm:flex">
-            <User size={17} aria-hidden /> ورود
-          </span>
-          <ShoppingBag size={19} aria-hidden />
+          <Link to="/account" className="hidden items-center gap-1.5 text-sm sm:flex">
+            <User size={17} aria-hidden /> حساب من
+          </Link>
+          <Link to="/account" aria-label="سبد خرید">
+            <ShoppingBag size={19} aria-hidden />
+          </Link>
         </div>
       </div>
     </header>
