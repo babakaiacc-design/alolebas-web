@@ -6,6 +6,8 @@ import Home from "./pages/Home";
 import Search from "./pages/Search";
 import Product from "./pages/Product";
 import AminKharid from "./pages/AminKharid";
+import B2B from "./pages/B2B";
+import Services from "./pages/Services";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -15,6 +17,8 @@ createRoot(document.getElementById("root")!).render(
         <Route path="/search" element={<Search />} />
         <Route path="/product/:id" element={<Product />} />
         <Route path="/amin-kharid" element={<AminKharid />} />
+        <Route path="/b2b" element={<B2B />} />
+        <Route path="/services" element={<Services />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,

@@ -91,8 +91,8 @@ export function SiteHeader() {
           >
             <Link to="/search">جستجو</Link>
             <Link to="/amin-kharid">امین خرید</Link>
-            <a href="/#services">خدمات</a>
-            <a href="/#pillars">چرا الولباس</a>
+            <Link to="/services">خدمات</Link>
+            <Link to="/b2b">عمده</Link>
           </nav>
         </div>
         <div className="flex items-center gap-4" style={{ color: "rgba(255,255,255,.8)" }}>

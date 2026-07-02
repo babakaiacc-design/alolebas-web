@@ -91,6 +91,21 @@ html.al body {
 
 a { text-decoration: none; color: inherit; }
 
+.al-input {
+  width: 100%;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.al-input:focus {
+  border-color: var(--al-teal) !important;
+  box-shadow: 0 0 0 3px rgba(42, 157, 143, 0.12);
+}
+.al-input::placeholder { color: #b0aca4; }
+
 @media (prefers-reduced-motion: reduce) {
   html.al { scroll-behavior: auto; }
   .al-orb { animation: none !important; }
