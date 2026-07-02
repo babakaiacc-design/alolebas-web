@@ -1,59 +1,14 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import {
-  Search,
-  Mic,
-  Camera,
-  MapPin,
-  ShieldCheck,
-  Clock,
-  SlidersHorizontal,
-  Store,
-  Sparkles,
-} from "lucide-react";
+import { Search, Mic, Camera, MapPin, Clock, SlidersHorizontal, Sparkles } from "lucide-react";
 import { C, CONTAINER, Reveal, SiteHeader, SiteFooter } from "../components/site-chrome";
+import { ProductCard } from "../components/product-card";
+import { PRODUCTS, CATEGORIES, NEAR_KM, fa, money } from "../data/products";
 
-/* Persian digits */
-const FA = "۰۱۲۳۴۵۶۷۸۹";
-const fa = (n: number | string) => String(n).replace(/\d/g, (d) => FA[+d]);
-const money = (n: number) => fa(n.toLocaleString("en-US"));
-
-type Product = {
-  id: number;
-  name: string;
-  category: string;
-  colorName: string;
-  colorHex: string;
-  price: number;
-  oldPrice?: number;
-  seller: string;
-  distance: number;
-  wholesale: boolean;
-  sizes: string[];
-};
-
-const PRODUCTS: Product[] = [
-  { id: 1, name: "مانتو نخی روشن", category: "مانتو", colorName: "کرم", colorHex: "#efe7d8", price: 620000, oldPrice: 780000, seller: "مزون آوا", distance: 3, wholesale: false, sizes: ["S", "M", "L"] },
-  { id: 2, name: "پیراهن مردانه آستین‌بلند", category: "پیراهن", colorName: "آبی", colorHex: "#2f4a7a", price: 450000, seller: "تیرداد استایل", distance: 6, wholesale: false, sizes: ["M", "L", "XL"] },
-  { id: 3, name: "شلوار جین سبز", category: "شلوار", colorName: "سبز", colorHex: "#4b7a4a", price: 540000, seller: "جین‌سرا", distance: 2, wholesale: false, sizes: ["38", "40", "42"] },
-  { id: 4, name: "لباس مجلسی بلند", category: "مجلسی", colorName: "شرابی", colorHex: "#6e2033", price: 1850000, oldPrice: 2200000, seller: "مزون رُز", distance: 11, wholesale: false, sizes: ["S", "M"] },
-  { id: 5, name: "مانتو کتان اداری", category: "مانتو", colorName: "ذغالی", colorHex: "#2d2d2d", price: 690000, seller: "کاژه", distance: 5, wholesale: false, sizes: ["M", "L"] },
-  { id: 6, name: "تیشرت پنبه‌ای", category: "تیشرت", colorName: "سفید", colorHex: "#f4f4f0", price: 220000, seller: "بازار تهران", distance: 1, wholesale: false, sizes: ["S", "M", "L", "XL"] },
-  { id: 7, name: "پارچه کرپ (متری)", category: "پارچه", colorName: "طلایی", colorHex: "#c8963e", price: 180000, seller: "واردات نخ‌وپود", distance: 9, wholesale: true, sizes: ["متر"] },
-  { id: 8, name: "کاپشن زمستانی", category: "کاپشن", colorName: "سرمه‌ای", colorHex: "#1b2a4a", price: 1250000, seller: "اسپرت‌لند", distance: 14, wholesale: false, sizes: ["M", "L", "XL"] },
-  { id: 9, name: "شومیز حریر", category: "شومیز", colorName: "صورتی", colorHex: "#d68aa0", price: 380000, seller: "مزون نیلا", distance: 4, wholesale: false, sizes: ["S", "M", "L"] },
-  { id: 10, name: "شلوار کتان مردانه", category: "شلوار", colorName: "خاکی", colorHex: "#9a8663", price: 490000, seller: "تیرداد استایل", distance: 6, wholesale: false, sizes: ["40", "42", "44"] },
-  { id: 11, name: "مانتو عمده (بسته ۱۲تایی)", category: "مانتو", colorName: "طوسی", colorHex: "#8a8f98", price: 5400000, seller: "تولیدی مهتا", distance: 12, wholesale: true, sizes: ["متنوع"] },
-  { id: 12, name: "کفش کالج چرم", category: "کفش", colorName: "قهوه‌ای", colorHex: "#5a3a22", price: 890000, seller: "چرم‌دوز", distance: 7, wholesale: false, sizes: ["40", "41", "42", "43"] },
-];
-
-const CATEGORIES = ["همه", ...Array.from(new Set(PRODUCTS.map((p) => p.category)))];
 const MODES = [
   { id: "text", label: "متنی", icon: Search },
   { id: "voice", label: "صوتی", icon: Mic },
   { id: "image", label: "تصویری", icon: Camera },
 ] as const;
-
-const NEAR_KM = 8;
 
 export default function SearchPage() {
   const [mode, setMode] = useState<(typeof MODES)[number]["id"]>("text");
@@ -311,99 +266,4 @@ function FilterLabel({ children }: { children: ReactNode }) {
       {children}
     </div>
   );
-}
-
-function ProductCard({ p }: { p: Product }) {
-  const near = p.distance <= NEAR_KM;
-  const light = isLight(p.colorHex);
-  return (
-    <div
-      className="al-card-lift flex h-full flex-col overflow-hidden rounded-2xl"
-      style={{ background: "#fff", border: `1px solid ${C.border}` }}
-    >
-      <div className="relative flex h-36 items-center justify-center" style={{ background: p.colorHex }}>
-        <Store size={30} style={{ color: light ? "rgba(0,0,0,.25)" : "rgba(255,255,255,.55)" }} aria-hidden />
-        <div className="absolute right-2 top-2 flex flex-col gap-1.5">
-          <span
-            className="flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold"
-            style={{ background: "#eef6ee", color: "#2a4a2a" }}
-          >
-            <ShieldCheck size={11} aria-hidden />
-            امین خرید
-          </span>
-          {near && (
-            <span
-              className="flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold"
-              style={{ background: C.gold, color: "#fff" }}
-            >
-              <Clock size={11} aria-hidden />۳ ساعته
-            </span>
-          )}
-        </div>
-        {p.oldPrice && (
-          <span
-            className="absolute bottom-2 left-2 rounded-full px-2 py-1 text-[10px] font-bold text-white"
-            style={{ background: "#b84040" }}
-          >
-            {fa(Math.round((1 - p.price / p.oldPrice) * 100))}٪ تخفیف
-          </span>
-        )}
-      </div>
-
-      <div className="flex flex-1 flex-col p-3.5">
-        <div className="mb-1 flex items-center gap-1.5 text-[11px]" style={{ color: C.muted }}>
-          <Store size={12} aria-hidden />
-          {p.seller}
-          <span>·</span>
-          <MapPin size={12} aria-hidden />
-          {fa(p.distance)} کیلومتر
-        </div>
-        <h3 className="mb-2 text-sm font-bold leading-6" style={{ color: C.indigo }}>
-          {p.name}
-        </h3>
-
-        <div className="mb-3 flex flex-wrap gap-1">
-          {p.sizes.map((s) => (
-            <span
-              key={s}
-              className="rounded px-1.5 py-0.5 text-[10px]"
-              style={{ background: C.cream, color: C.muted, border: `1px solid ${C.border}` }}
-            >
-              {s}
-            </span>
-          ))}
-          {p.wholesale && (
-            <span
-              className="rounded px-1.5 py-0.5 text-[10px] font-medium"
-              style={{ background: C.lightGold, color: "#8a5a12" }}
-            >
-              عمده
-            </span>
-          )}
-        </div>
-
-        <div className="mt-auto flex items-baseline gap-2">
-          <span className="text-sm font-black" style={{ color: C.indigo }}>
-            {money(p.price)}
-          </span>
-          <span className="text-[11px]" style={{ color: C.muted }}>
-            تومان
-          </span>
-          {p.oldPrice && (
-            <span className="text-[11px] line-through" style={{ color: "#b0aca4" }}>
-              {money(p.oldPrice)}
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function isLight(hex: string) {
-  const h = hex.replace("#", "");
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return 0.299 * r + 0.587 * g + 0.114 * b > 150;
 }
