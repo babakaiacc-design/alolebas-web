@@ -10,6 +10,7 @@ import B2B from "./pages/B2B";
 import Services from "./pages/Services";
 import Account from "./pages/Account";
 import Seller from "./pages/Seller";
+import NotFound from "./pages/NotFound";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -23,6 +24,7 @@ createRoot(document.getElementById("root")!).render(
         <Route path="/services" element={<Services />} />
         <Route path="/account" element={<Account />} />
         <Route path="/seller" element={<Seller />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,
