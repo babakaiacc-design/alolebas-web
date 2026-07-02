@@ -11,6 +11,8 @@ import Services from "./pages/Services";
 import Account from "./pages/Account";
 import Seller from "./pages/Seller";
 import NotFound from "./pages/NotFound";
+import Cart from "./pages/Cart";
+import Checkout from "./pages/Checkout";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -24,6 +26,8 @@ createRoot(document.getElementById("root")!).render(
         <Route path="/services" element={<Services />} />
         <Route path="/account" element={<Account />} />
         <Route path="/seller" element={<Seller />} />
+        <Route path="/cart" element={<Cart />} />
+        <Route path="/checkout" element={<Checkout />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>

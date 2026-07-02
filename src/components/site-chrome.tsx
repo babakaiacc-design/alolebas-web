@@ -99,7 +99,7 @@ export function SiteHeader() {
           <Link to="/account" className="hidden items-center gap-1.5 text-sm sm:flex">
             <User size={17} aria-hidden /> حساب من
           </Link>
-          <Link to="/account" aria-label="سبد خرید">
+          <Link to="/cart" aria-label="سبد خرید">
             <ShoppingBag size={19} aria-hidden />
           </Link>
         </div>
