@@ -3,8 +3,19 @@ import { useSearchParams } from "react-router-dom";
 import { Search, Mic, Camera, MapPin, Clock, SlidersHorizontal, Sparkles, X, Upload } from "lucide-react";
 import { C, CONTAINER, Reveal, SiteHeader, SiteFooter } from "../components/site-chrome";
 import { ProductCard } from "../components/product-card";
-import { PRODUCTS, CATEGORIES, NEAR_KM, fa, money, searchProducts, productsByColor } from "../data/products";
+import {
+  PRODUCTS,
+  CATEGORIES,
+  NEAR_KM,
+  fa,
+  money,
+  searchProducts,
+  productsByColor,
+  getProduct,
+  type Product,
+} from "../data/products";
 import { dominantColorFromFile } from "../lib/imageColor";
+import { searchByImageSrc } from "../lib/visualSearch";
 
 const MODES = [
   { id: "text", label: "متنی", icon: Search },
@@ -26,6 +37,9 @@ export default function SearchPage() {
   // image
   const [imgColor, setImgColor] = useState<string | null>(null);
   const [imgPreview, setImgPreview] = useState<string | null>(null);
+  const [aiResults, setAiResults] = useState<number[] | null>(null);
+  const [aiStatus, setAiStatus] = useState<"idle" | "loading" | "ai" | "color">("idle");
+  const [modelPct, setModelPct] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // filters
@@ -89,23 +103,51 @@ export default function SearchPage() {
   async function onFile(e: ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (!f) return;
-    setImgPreview(URL.createObjectURL(f));
+    const preview = URL.createObjectURL(f);
+    setImgPreview(preview);
+    setImgColor(null);
+    setAiResults(null);
+    setAiStatus("loading");
+    setModelPct(0);
     try {
-      const hex = await dominantColorFromFile(f);
-      setImgColor(hex);
-    } catch {
-      setImgColor("#888888");
+      const ai = await searchByImageSrc(preview, (p) => setModelPct(p));
+      if (ai && ai.length) {
+        setAiResults(ai.map((r) => r.id));
+        setAiStatus("ai");
+        return;
+      }
+      // no catalog embeddings yet → fall back to color match
+      console.warn("[visual] no AI results (null) → color fallback");
+      setImgColor(await dominantColorFromFile(f));
+      setAiStatus("color");
+    } catch (err) {
+      console.error("[visual] AI search failed → color fallback:", err);
+      try {
+        setImgColor(await dominantColorFromFile(f));
+      } catch {
+        setImgColor("#888888");
+      }
+      setAiStatus("color");
     }
   }
 
   function clearImage() {
     setImgColor(null);
     setImgPreview(null);
+    setAiResults(null);
+    setAiStatus("idle");
     if (fileRef.current) fileRef.current.value = "";
   }
 
   const results = useMemo(() => {
-    let base = mode === "image" && imgColor ? productsByColor(imgColor) : searchProducts(q);
+    let base: Product[];
+    if (mode === "image" && aiResults) {
+      base = aiResults.map(getProduct).filter((p): p is Product => Boolean(p));
+    } else if (mode === "image" && imgColor) {
+      base = productsByColor(imgColor);
+    } else {
+      base = searchProducts(q);
+    }
     let list = base.filter((p) => {
       if (cat !== "همه" && p.category !== cat) return false;
       if (channel === "retail" && p.wholesale) return false;
@@ -119,11 +161,17 @@ export default function SearchPage() {
       else if (sort === "cheap") list = [...list].sort((a, b) => a.price - b.price);
     }
     return list;
-  }, [q, mode, imgColor, cat, channel, maxPrice, nearOnly, sort]);
+  }, [q, mode, imgColor, aiResults, cat, channel, maxPrice, nearOnly, sort]);
 
   const summary =
-    mode === "image" && imgColor
-      ? "جستجو با تصویر — نزدیک‌ترین رنگ‌ها"
+    mode === "image"
+      ? aiStatus === "ai"
+        ? "جستجوی تصویری با هوش مصنوعی"
+        : aiStatus === "color"
+          ? "جستجو با تصویر (بر اساس رنگ)"
+          : aiStatus === "loading"
+            ? "در حال تحلیل تصویر…"
+            : "یک عکس آپلود کن"
       : q.trim()
         ? `نتایج برای «${q.trim()}»`
         : "همه‌ی محصولات";
@@ -244,18 +292,39 @@ export default function SearchPage() {
                   <div className="flex items-center gap-4">
                     <img src={imgPreview} alt="نمونه" className="h-20 w-20 rounded-xl object-cover" />
                     <div className="flex-1">
-                      <div className="mb-1 flex items-center gap-2 text-sm font-medium" style={{ color: C.indigo }}>
-                        رنگ غالب:
-                        {imgColor && (
-                          <span
-                            className="inline-block h-5 w-5 rounded-full"
-                            style={{ background: imgColor, border: `1px solid ${C.border}` }}
-                          />
-                        )}
-                      </div>
-                      <div className="text-xs" style={{ color: C.muted }}>
-                        نزدیک‌ترین محصولات را بر اساس رنگ پیدا کردیم.
-                      </div>
+                      {aiStatus === "loading" && (
+                        <div className="flex items-center gap-2 text-sm font-medium" style={{ color: C.indigo }}>
+                          <Sparkles size={16} style={{ color: C.teal }} aria-hidden />
+                          در حال تحلیل با هوش مصنوعی…{modelPct ? ` ${fa(modelPct)}٪` : ""}
+                        </div>
+                      )}
+                      {aiStatus === "ai" && (
+                        <>
+                          <div className="flex items-center gap-2 text-sm font-medium" style={{ color: C.tealInk }}>
+                            <Sparkles size={16} aria-hidden />
+                            تحلیل هوش مصنوعی (CLIP)
+                          </div>
+                          <div className="mt-0.5 text-xs" style={{ color: C.muted }}>
+                            مشابه‌ترین محصولات بر اساس تصویر.
+                          </div>
+                        </>
+                      )}
+                      {aiStatus === "color" && (
+                        <>
+                          <div className="mb-1 flex items-center gap-2 text-sm font-medium" style={{ color: C.indigo }}>
+                            رنگ غالب:
+                            {imgColor && (
+                              <span
+                                className="inline-block h-5 w-5 rounded-full"
+                                style={{ background: imgColor, border: `1px solid ${C.border}` }}
+                              />
+                            )}
+                          </div>
+                          <div className="text-xs" style={{ color: C.muted }}>
+                            موتور AI آماده است؛ فعلاً بر اساس رنگ تطبیق می‌دهیم.
+                          </div>
+                        </>
+                      )}
                     </div>
                     <button onClick={clearImage} aria-label="حذف عکس" style={{ color: C.muted }}>
                       <X size={18} aria-hidden />
