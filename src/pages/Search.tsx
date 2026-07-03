@@ -10,9 +10,11 @@ import {
   money,
   searchProducts,
   productsByColor,
+  getProduct,
   type Product,
 } from "../data/products";
 import { dominantColorFromFile } from "../lib/imageColor";
+import { searchByImageSrc } from "../lib/visualSearch";
 
 const MODES = [
   { id: "text", label: "متنی", icon: Search },
@@ -36,7 +38,9 @@ export default function SearchPage() {
   // image
   const [imgColor, setImgColor] = useState<string | null>(null);
   const [imgPreview, setImgPreview] = useState<string | null>(null);
-  const [imgReady, setImgReady] = useState(false);
+  const [aiResults, setAiResults] = useState<number[] | null>(null);
+  const [aiStatus, setAiStatus] = useState<"idle" | "loading" | "ai" | "color">("idle");
+  const [modelPct, setModelPct] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // filters
@@ -99,25 +103,48 @@ export default function SearchPage() {
   async function onFile(e: ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (!f) return;
-    setImgPreview(URL.createObjectURL(f));
-    setImgReady(false);
+    const preview = URL.createObjectURL(f);
+    setImgPreview(preview);
+    setImgColor(null);
+    setAiResults(null);
+    setAiStatus("loading");
+    setModelPct(0);
     try {
+      const ai = await searchByImageSrc(preview, (p) => setModelPct(p));
+      if (ai && ai.length) {
+        setAiResults(ai.map((r) => r.id));
+        setAiStatus("ai");
+        return;
+      }
       setImgColor(await dominantColorFromFile(f));
+      setAiStatus("color");
     } catch {
-      setImgColor("#888888");
+      try {
+        setImgColor(await dominantColorFromFile(f));
+      } catch {
+        setImgColor("#888888");
+      }
+      setAiStatus("color");
     }
-    setImgReady(true);
   }
 
   function clearImage() {
     setImgColor(null);
     setImgPreview(null);
-    setImgReady(false);
+    setAiResults(null);
+    setAiStatus("idle");
     if (fileRef.current) fileRef.current.value = "";
   }
 
   const results = useMemo(() => {
-    const base: Product[] = mode === "image" && imgColor ? productsByColor(imgColor) : searchProducts(q);
+    let base: Product[];
+    if (mode === "image" && aiResults) {
+      base = aiResults.map(getProduct).filter((p): p is Product => Boolean(p));
+    } else if (mode === "image" && imgColor) {
+      base = productsByColor(imgColor);
+    } else {
+      base = searchProducts(q);
+    }
     let list = base.filter((p) => {
       if (cat !== "همه" && p.category !== cat) return false;
       if (channel === "retail" && p.wholesale) return false;
@@ -133,13 +160,17 @@ export default function SearchPage() {
       else if (sort === "cheap") list = [...list].sort((a, b) => a.price - b.price);
     }
     return list;
-  }, [q, mode, imgColor, cat, channel, maxPrice, nearOnly, sort]);
+  }, [q, mode, imgColor, aiResults, cat, channel, maxPrice, nearOnly, sort]);
 
   const summary =
     mode === "image"
-      ? imgReady
-        ? "جستجو با تصویر — نزدیک‌ترین رنگ‌ها"
-        : "یک عکس آپلود کن"
+      ? aiStatus === "ai"
+        ? "جستجوی تصویری با هوش مصنوعی"
+        : aiStatus === "color"
+          ? "جستجو با تصویر (بر اساس رنگ)"
+          : aiStatus === "loading"
+            ? "در حال تحلیل تصویر…"
+            : "یک عکس آپلود کن"
       : q.trim()
         ? `نتایج برای «${q.trim()}»`
         : "همه‌ی محصولات";
@@ -257,19 +288,39 @@ export default function SearchPage() {
                   <div className="flex items-center gap-4">
                     <img src={imgPreview} alt="نمونه" className="h-20 w-20 rounded-xl object-cover" />
                     <div className="flex-1">
-                      <div className="mb-1 flex items-center gap-2 text-sm font-medium" style={{ color: C.indigo }}>
-                        رنگ غالب:
-                        {imgColor && (
-                          <span
-                            className="inline-block h-5 w-5 rounded-full"
-                            style={{ background: imgColor, border: `1px solid ${C.border}` }}
-                          />
-                        )}
-                      </div>
-                      <div className="text-xs leading-6" style={{ color: C.muted }}>
-                        فعلاً بر اساس رنگ تطبیق می‌دهیم. تطبیق «نوع و مدلِ لباس» با هوش
-                        مصنوعی، پس از افزودن عکس واقعی محصولات فعال می‌شود.
-                      </div>
+                      {aiStatus === "loading" && (
+                        <div className="flex items-center gap-2 text-sm font-medium" style={{ color: C.indigo }}>
+                          <Sparkles size={16} style={{ color: C.teal }} aria-hidden />
+                          در حال تحلیل با هوش مصنوعی…{modelPct ? ` ${fa(modelPct)}٪` : ""}
+                        </div>
+                      )}
+                      {aiStatus === "ai" && (
+                        <>
+                          <div className="flex items-center gap-2 text-sm font-medium" style={{ color: C.tealInk }}>
+                            <Sparkles size={16} aria-hidden />
+                            تحلیل هوش مصنوعی (CLIP)
+                          </div>
+                          <div className="mt-0.5 text-xs" style={{ color: C.muted }}>
+                            مشابه‌ترین محصولات بر اساس تصویر.
+                          </div>
+                        </>
+                      )}
+                      {aiStatus === "color" && (
+                        <>
+                          <div className="mb-1 flex items-center gap-2 text-sm font-medium" style={{ color: C.indigo }}>
+                            رنگ غالب:
+                            {imgColor && (
+                              <span
+                                className="inline-block h-5 w-5 rounded-full"
+                                style={{ background: imgColor, border: `1px solid ${C.border}` }}
+                              />
+                            )}
+                          </div>
+                          <div className="text-xs" style={{ color: C.muted }}>
+                            بر اساس رنگ تطبیق دادیم.
+                          </div>
+                        </>
+                      )}
                     </div>
                     <button onClick={clearImage} aria-label="حذف عکس" style={{ color: C.muted }}>
                       <X size={18} aria-hidden />

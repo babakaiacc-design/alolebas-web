@@ -96,14 +96,18 @@ function ProductView({ product: p }: { product: Product }) {
         <Reveal immediate>
           <div>
             <div
-              className="relative flex h-80 items-center justify-center rounded-2xl sm:h-96"
+              className="relative flex h-80 items-center justify-center overflow-hidden rounded-2xl sm:h-96"
               style={{ background: mainColor, border: `1px solid ${C.border}` }}
             >
-              <Store
-                size={64}
-                style={{ color: isLight(mainColor) ? "rgba(0,0,0,.18)" : "rgba(255,255,255,.5)" }}
-                aria-hidden
-              />
+              {p.image ? (
+                <img src={p.image} alt={p.name} className="h-full w-full object-cover" />
+              ) : (
+                <Store
+                  size={64}
+                  style={{ color: isLight(mainColor) ? "rgba(0,0,0,.18)" : "rgba(255,255,255,.5)" }}
+                  aria-hidden
+                />
+              )}
               <div className="absolute right-3 top-3 flex flex-col gap-1.5">
                 <span
                   className="flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold"
@@ -123,21 +127,23 @@ function ProductView({ product: p }: { product: Product }) {
                 )}
               </div>
             </div>
-            {/* thumbnails */}
-            <div className="mt-3 flex gap-2">
-              {swatches.map((c, i) => (
-                <button
-                  key={c + i}
-                  onClick={() => setColorIdx(i)}
-                  aria-label={`رنگ ${fa(i + 1)}`}
-                  className="h-16 w-16 rounded-xl transition-all"
-                  style={{
-                    background: c,
-                    border: `2px solid ${i === colorIdx ? C.teal : C.border}`,
-                  }}
-                />
-              ))}
-            </div>
+            {/* thumbnails (swatches only when there is no real photo) */}
+            {!p.image && (
+              <div className="mt-3 flex gap-2">
+                {swatches.map((c, i) => (
+                  <button
+                    key={c + i}
+                    onClick={() => setColorIdx(i)}
+                    aria-label={`رنگ ${fa(i + 1)}`}
+                    className="h-16 w-16 rounded-xl transition-all"
+                    style={{
+                      background: c,
+                      border: `2px solid ${i === colorIdx ? C.teal : C.border}`,
+                    }}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </Reveal>
 
@@ -210,23 +216,25 @@ function ProductView({ product: p }: { product: Product }) {
               </div>
             )}
 
-            {/* color */}
-            <div className="mb-4">
-              <div className="mb-2 text-xs font-bold" style={{ color: C.indigo }}>
-                رنگ: <span style={{ color: C.muted }}>{p.colorName}</span>
+            {/* color (only when we have named/multiple colors) */}
+            {(p.colorName || (p.altColors && p.altColors.length > 1)) && (
+              <div className="mb-4">
+                <div className="mb-2 text-xs font-bold" style={{ color: C.indigo }}>
+                  رنگ:{p.colorName && <span style={{ color: C.muted }}> {p.colorName}</span>}
+                </div>
+                <div className="flex gap-2">
+                  {swatches.map((c, i) => (
+                    <button
+                      key={c + i}
+                      onClick={() => setColorIdx(i)}
+                      aria-label={`انتخاب رنگ ${fa(i + 1)}`}
+                      className="h-8 w-8 rounded-full transition-all"
+                      style={{ background: c, border: `2px solid ${i === colorIdx ? C.teal : C.border}` }}
+                    />
+                  ))}
+                </div>
               </div>
-              <div className="flex gap-2">
-                {swatches.map((c, i) => (
-                  <button
-                    key={c + i}
-                    onClick={() => setColorIdx(i)}
-                    aria-label={`انتخاب رنگ ${fa(i + 1)}`}
-                    className="h-8 w-8 rounded-full transition-all"
-                    style={{ background: c, border: `2px solid ${i === colorIdx ? C.teal : C.border}` }}
-                  />
-                ))}
-              </div>
-            </div>
+            )}
 
             {/* size */}
             <div className="mb-5">

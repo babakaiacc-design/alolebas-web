@@ -76,10 +76,14 @@ export default function CartPage() {
                   >
                     <Link
                       to={`/product/${p.id}`}
-                      className="flex h-24 w-24 flex-shrink-0 items-center justify-center rounded-xl"
+                      className="flex h-24 w-24 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl"
                       style={{ background: p.colorHex }}
                     >
-                      <Store size={26} style={{ color: isLight(p.colorHex) ? "rgba(0,0,0,.22)" : "rgba(255,255,255,.55)" }} aria-hidden />
+                      {p.image ? (
+                        <img src={p.image} alt={p.name} loading="lazy" className="h-full w-full object-cover" />
+                      ) : (
+                        <Store size={26} style={{ color: isLight(p.colorHex) ? "rgba(0,0,0,.22)" : "rgba(255,255,255,.55)" }} aria-hidden />
+                      )}
                     </Link>
 
                     <div className="flex min-w-0 flex-1 flex-col">

@@ -12,8 +12,12 @@ export function ProductCard({ p }: { p: Product }) {
       className="al-card-lift flex h-full flex-col overflow-hidden rounded-2xl"
       style={{ background: "#fff", border: `1px solid ${C.border}` }}
     >
-      <div className="relative flex h-36 items-center justify-center" style={{ background: p.colorHex }}>
-        <Store size={30} style={{ color: light ? "rgba(0,0,0,.25)" : "rgba(255,255,255,.55)" }} aria-hidden />
+      <div className="relative flex h-44 items-center justify-center overflow-hidden" style={{ background: p.colorHex }}>
+        {p.image ? (
+          <img src={p.image} alt={p.name} loading="lazy" className="h-full w-full object-cover" />
+        ) : (
+          <Store size={30} style={{ color: light ? "rgba(0,0,0,.25)" : "rgba(255,255,255,.55)" }} aria-hidden />
+        )}
         <div className="absolute right-2 top-2 flex flex-col gap-1.5">
           <span
             className="flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold"
