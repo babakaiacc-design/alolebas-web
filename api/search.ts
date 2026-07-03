@@ -1,16 +1,26 @@
 // Vercel serverless function: AI search over the product catalog using Jina
 // jina-clip-v2 multimodal embeddings. The API key stays server-side (env var
-// JINA_API_KEY); it is never shipped to the browser.
-import catalogJson from "./_catalog.json";
-
+// JINA_API_KEY); it is never shipped to the browser. The catalog embeddings are
+// fetched at runtime from the deployment's own static /catalog.json (kept out of
+// the function bundle so the function stays small).
 const JINA = "https://api.jina.ai/v1/embeddings";
 const MODEL = "jina-clip-v2";
 
 type Item = { id: number; category: string; colorHex: string; vec: number[] };
 type Proto = { category: string; vec: number[] };
-const catalog = catalogJson as unknown as { items?: Item[]; prototypes?: Proto[] };
-const items: Item[] = (catalog && catalog.items) || [];
-const protos: Proto[] = (catalog && catalog.prototypes) || [];
+type Catalog = { items: Item[]; prototypes: Proto[] };
+
+let catalogCache: Catalog | null = null;
+
+async function getCatalog(req: any): Promise<Catalog> {
+  if (catalogCache) return catalogCache;
+  const host = req.headers["x-forwarded-host"] || req.headers.host;
+  const proto = req.headers["x-forwarded-proto"] || "https";
+  const r = await fetch(`${proto}://${host}/catalog.json`);
+  const data = (await r.json()) as { items?: Item[]; prototypes?: Proto[] };
+  catalogCache = { items: data.items || [], prototypes: data.prototypes || [] };
+  return catalogCache;
+}
 
 function cos(a: number[], b: number[]): number {
   let s = 0;
@@ -46,11 +56,13 @@ export default async function handler(req: any, res: any) {
     res.status(503).json({ error: "no-key" });
     return;
   }
-  if (!items.length) {
-    res.status(503).json({ error: "no-catalog" });
-    return;
-  }
   try {
+    const { items, prototypes } = await getCatalog(req);
+    if (!items.length) {
+      res.status(503).json({ error: "no-catalog" });
+      return;
+    }
+
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
     const { mode, q, image } = body as { mode?: string; q?: string; image?: string };
 
@@ -65,9 +77,9 @@ export default async function handler(req: any, res: any) {
     const qv = await embedQuery(input, key);
 
     let category: string | null = null;
-    if (mode === "image" && protos.length) {
+    if (mode === "image" && prototypes.length) {
       let best = -Infinity;
-      for (const p of protos) {
+      for (const p of prototypes) {
         const s = cos(qv, p.vec);
         if (s > best) {
           best = s;

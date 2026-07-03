@@ -1,6 +1,6 @@
 /**
  * Embed the product catalog with Jina jina-clip-v2 (multimodal) for the backend.
- * Writes api/_catalog.json = { model, dim, items:[{id,category,colorHex,vec}], prototypes }.
+ * Writes public/catalog.json = { model, dim, items:[{id,category,colorHex,vec}], prototypes }.
  * Run:  JINA_API_KEY=... node scripts/embed-jina.mjs
  */
 import { readFileSync, writeFileSync } from "node:fs";
@@ -56,5 +56,5 @@ const prototypes = Object.entries(groups).map(([category, vecs]) => {
   return { category, vec: l2(mean) };
 });
 
-writeFileSync("api/_catalog.json", JSON.stringify({ model: MODEL, dim, items, prototypes }));
+writeFileSync("public/catalog.json", JSON.stringify({ model: MODEL, dim, items, prototypes }));
 console.log(`\nDONE: ${items.length} items, dim ${dim}, ${prototypes.length} prototypes, ${totalTokens} tokens total`);
