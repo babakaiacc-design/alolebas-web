@@ -15,6 +15,7 @@ import {
 } from "../data/products";
 import { dominantColorFromFile } from "../lib/imageColor";
 import { searchByImageSrc } from "../lib/visualSearch";
+import { backendImageSearch } from "../lib/backendSearch";
 
 const MODES = [
   { id: "text", label: "متنی", icon: Search },
@@ -112,13 +113,26 @@ export default function SearchPage() {
     setAiStatus("loading");
     setModelPct(0);
     const queryColor = await dominantColorFromFile(f).catch(() => null);
+
+    // 1) strong backend (Jina) — used when JINA_API_KEY is configured on the server
+    const be = await backendImageSearch(f);
+    if (be && be.ids.length) {
+      setAiResults(be.ids);
+      setAiCategory(be.category);
+      setImgColor(queryColor);
+      if (be.category) setCat(be.category);
+      setAiStatus("ai");
+      return;
+    }
+
+    // 2) fallback: on-device MobileCLIP
     try {
       const ai = await searchByImageSrc(preview, queryColor, (p) => setModelPct(p));
       if (ai && ai.ids.length) {
         setAiResults(ai.ids);
         setAiCategory(ai.category);
         setImgColor(queryColor);
-        setCat(ai.category ?? "همه"); // auto-narrow to detected type (user can change the chip)
+        setCat(ai.category ?? "همه");
         setAiStatus("ai");
         return;
       }
