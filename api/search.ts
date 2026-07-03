@@ -1,15 +1,16 @@
 // Vercel serverless function: AI search over the product catalog using Jina
 // jina-clip-v2 multimodal embeddings. The API key stays server-side (env var
 // JINA_API_KEY); it is never shipped to the browser.
-import catalog from "./_catalog.json";
+import catalogJson from "./_catalog.json";
 
 const JINA = "https://api.jina.ai/v1/embeddings";
 const MODEL = "jina-clip-v2";
 
 type Item = { id: number; category: string; colorHex: string; vec: number[] };
 type Proto = { category: string; vec: number[] };
-const items = (catalog as { items: Item[] }).items || [];
-const protos = (catalog as { prototypes: Proto[] }).prototypes || [];
+const catalog = catalogJson as unknown as { items?: Item[]; prototypes?: Proto[] };
+const items: Item[] = (catalog && catalog.items) || [];
+const protos: Proto[] = (catalog && catalog.prototypes) || [];
 
 function cos(a: number[], b: number[]): number {
   let s = 0;
