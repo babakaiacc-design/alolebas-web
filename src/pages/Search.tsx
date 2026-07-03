@@ -23,7 +23,7 @@ const MODES = [
 ] as const;
 type Mode = (typeof MODES)[number]["id"];
 
-const IMAGE_LIMIT = 8;
+const IMAGE_LIMIT = 12;
 
 export default function SearchPage() {
   const [params, setParams] = useSearchParams();
@@ -39,6 +39,7 @@ export default function SearchPage() {
   const [imgColor, setImgColor] = useState<string | null>(null);
   const [imgPreview, setImgPreview] = useState<string | null>(null);
   const [aiResults, setAiResults] = useState<number[] | null>(null);
+  const [aiCategory, setAiCategory] = useState<string | null>(null);
   const [aiStatus, setAiStatus] = useState<"idle" | "loading" | "ai" | "color">("idle");
   const [modelPct, setModelPct] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -107,23 +108,24 @@ export default function SearchPage() {
     setImgPreview(preview);
     setImgColor(null);
     setAiResults(null);
+    setAiCategory(null);
     setAiStatus("loading");
     setModelPct(0);
+    const queryColor = await dominantColorFromFile(f).catch(() => null);
     try {
-      const ai = await searchByImageSrc(preview, (p) => setModelPct(p));
-      if (ai && ai.length) {
-        setAiResults(ai.map((r) => r.id));
+      const ai = await searchByImageSrc(preview, queryColor, (p) => setModelPct(p));
+      if (ai && ai.ids.length) {
+        setAiResults(ai.ids);
+        setAiCategory(ai.category);
+        setImgColor(queryColor);
+        setCat(ai.category ?? "همه"); // auto-narrow to detected type (user can change the chip)
         setAiStatus("ai");
         return;
       }
-      setImgColor(await dominantColorFromFile(f));
+      setImgColor(queryColor ?? "#888888");
       setAiStatus("color");
     } catch {
-      try {
-        setImgColor(await dominantColorFromFile(f));
-      } catch {
-        setImgColor("#888888");
-      }
+      setImgColor(queryColor ?? "#888888");
       setAiStatus("color");
     }
   }
@@ -132,6 +134,7 @@ export default function SearchPage() {
     setImgColor(null);
     setImgPreview(null);
     setAiResults(null);
+    setAiCategory(null);
     setAiStatus("idle");
     if (fileRef.current) fileRef.current.value = "";
   }
@@ -296,12 +299,26 @@ export default function SearchPage() {
                       )}
                       {aiStatus === "ai" && (
                         <>
-                          <div className="flex items-center gap-2 text-sm font-medium" style={{ color: C.tealInk }}>
+                          <div className="flex flex-wrap items-center gap-2 text-sm font-medium" style={{ color: C.tealInk }}>
                             <Sparkles size={16} aria-hidden />
-                            تحلیل هوش مصنوعی (CLIP)
+                            تشخیص هوش مصنوعی:
+                            {aiCategory && (
+                              <span
+                                className="rounded-full px-2 py-0.5 text-xs font-bold"
+                                style={{ background: C.lightTeal, color: C.tealInk }}
+                              >
+                                {aiCategory}
+                              </span>
+                            )}
+                            {imgColor && (
+                              <span
+                                className="inline-block h-4 w-4 rounded-full"
+                                style={{ background: imgColor, border: `1px solid ${C.border}` }}
+                              />
+                            )}
                           </div>
                           <div className="mt-0.5 text-xs" style={{ color: C.muted }}>
-                            مشابه‌ترین محصولات بر اساس تصویر.
+                            بر اساس رنگ عکس مرتب شد. اگر نوع لباس درست تشخیص داده نشده، دسته را از فیلترها عوض کن.
                           </div>
                         </>
                       )}

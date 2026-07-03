@@ -72,7 +72,7 @@ for (const cat of ORDER) {
     const img = await RawImage.read(`./public/products/${file}`);
     const colorHex = avgColor(img);
     const out = await extractor(img);
-    embeddings.push({ id, vec: Array.from(out.data) });
+    embeddings.push({ id, category: CAT[cat].display, vec: Array.from(out.data) });
 
     const adj = meta.adj[i % meta.adj.length];
     const name = cat === "parche" ? `پارچه ${adj} (متری)` : `${meta.display} ${adj}`;
@@ -106,5 +106,18 @@ const ts =
   `import type { Product } from "./products";\n\n` +
   `export const PRODUCTS: Product[] = ${JSON.stringify(products, null, 2)};\n`;
 writeFileSync("src/data/products.data.ts", ts);
-writeFileSync("public/product-embeddings.json", JSON.stringify(embeddings));
-console.log(`wrote ${products.length} products + ${embeddings.length} embeddings (dim ${embeddings[0].vec.length})`);
+
+// per-category prototype = normalized mean of that category's image embeddings
+const l2 = (v) => { let s = 0; for (const x of v) s += x * x; s = Math.sqrt(s) || 1; return v.map((x) => x / s); };
+const dim = embeddings[0].vec.length;
+const groups = {};
+for (const e of embeddings) (groups[e.category] ||= []).push(l2(e.vec));
+const prototypes = Object.entries(groups).map(([category, vecs]) => {
+  const mean = new Array(dim).fill(0);
+  for (const v of vecs) for (let i = 0; i < dim; i++) mean[i] += v[i];
+  for (let i = 0; i < dim; i++) mean[i] /= vecs.length;
+  return { category, vec: l2(mean) };
+});
+
+writeFileSync("public/product-embeddings.json", JSON.stringify({ dim, items: embeddings, prototypes }));
+console.log(`wrote ${products.length} products + ${embeddings.length} embeddings (dim ${dim}) + ${prototypes.length} category prototypes`);
