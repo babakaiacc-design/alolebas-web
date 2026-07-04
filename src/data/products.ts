@@ -97,6 +97,14 @@ export function hexToRgb(hex: string): [number, number, number] {
   return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
 }
 
+/** 0 (gray) … 1 (vivid) — how colorful a hex is. */
+export function saturation(hex: string): number {
+  const [r, g, b] = hexToRgb(hex);
+  const mx = Math.max(r, g, b);
+  const mn = Math.min(r, g, b);
+  return mx ? (mx - mn) / mx : 0;
+}
+
 export function colorDistance(a: string, b: string): number {
   const [r1, g1, b1] = hexToRgb(a);
   const [r2, g2, b2] = hexToRgb(b);

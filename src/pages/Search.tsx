@@ -13,6 +13,7 @@ import {
   getProduct,
   colorDistance,
   parseColor,
+  saturation,
   type Product,
 } from "../data/products";
 import { dominantColorFromFile } from "../lib/imageColor";
@@ -216,15 +217,17 @@ export default function SearchPage() {
 
     if (mode === "image") {
       if (aiIds) {
-        // rank by real similarity score (dominant) + a gentle color nudge
+        // rank by real similarity score + color. The color weight ADAPTS to how
+        // colorful the query is: a vivid red garment leans harder on color so
+        // red items surface; a neutral/gray photo leans on shape.
         const N = aiIds.length || 1;
         const rankOf = new Map(aiIds.map((id, i) => [id, i]));
         const shapeScore = (id: number) => aiScores?.get(id) ?? 1 - (rankOf.get(id) ?? N) / N;
-        const colorSim = (hex: string) => (imgColor ? 1 - colorDistance(hex, imgColor) / 441 : 0);
-        list = [...list].sort(
-          (a, b) =>
-            0.8 * shapeScore(b.id) + 0.2 * colorSim(b.colorHex) - (0.8 * shapeScore(a.id) + 0.2 * colorSim(a.colorHex)),
-        );
+        const colorSim = (hex: string) => (imgColor ? Math.max(0, 1 - colorDistance(hex, imgColor) / 150) : 0);
+        const cw = imgColor ? Math.min(0.55, 0.2 + 0.5 * saturation(imgColor)) : 0;
+        const sw = 1 - cw;
+        const score = (p: Product) => sw * shapeScore(p.id) + cw * colorSim(p.colorHex);
+        list = [...list].sort((a, b) => score(b) - score(a));
       }
       list = list.slice(0, IMAGE_LIMIT);
     } else {
