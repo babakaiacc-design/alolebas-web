@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type ChangeEvent } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Search, Mic, Camera, MapPin, Clock, SlidersHorizontal, Sparkles, X, Upload } from "lucide-react";
+import { Search, Mic, Camera, MapPin, Clock, SlidersHorizontal, Sparkles, X, Upload, Plus } from "lucide-react";
 import { C, CONTAINER, Reveal, SiteHeader, SiteFooter } from "../components/site-chrome";
 import { ProductCard } from "../components/product-card";
 import {
@@ -27,6 +27,21 @@ const MODES = [
 type Mode = (typeof MODES)[number]["id"];
 
 const IMAGE_LIMIT = 12;
+const MAX_IMAGES = 3;
+
+function avgHex(hexes: string[]): string | null {
+  if (!hexes.length) return null;
+  let r = 0, g = 0, b = 0;
+  for (const h of hexes) {
+    const x = h.replace("#", "");
+    r += parseInt(x.slice(0, 2), 16);
+    g += parseInt(x.slice(2, 4), 16);
+    b += parseInt(x.slice(4, 6), 16);
+  }
+  const n = hexes.length;
+  const t = (v: number) => Math.round(v / n).toString(16).padStart(2, "0");
+  return `#${t(r)}${t(g)}${t(b)}`;
+}
 
 export default function SearchPage() {
   const [params, setParams] = useSearchParams();
@@ -38,11 +53,13 @@ export default function SearchPage() {
   const [voiceMsg, setVoiceMsg] = useState<string | null>(null);
   const recRef = useRef<any>(null);
 
-  // image
+  // image (up to 3)
+  const [imgFiles, setImgFiles] = useState<File[]>([]);
+  const [imgPreviews, setImgPreviews] = useState<string[]>([]);
   const [imgColor, setImgColor] = useState<string | null>(null);
-  const [imgPreview, setImgPreview] = useState<string | null>(null);
-  const [aiResults, setAiResults] = useState<number[] | null>(null);
-  const [aiCategory, setAiCategory] = useState<string | null>(null);
+  const [aiIds, setAiIds] = useState<number[] | null>(null);
+  const [aiScores, setAiScores] = useState<Map<number, number> | null>(null);
+  const [aiCategories, setAiCategories] = useState<string[]>([]);
   const [aiStatus, setAiStatus] = useState<"idle" | "loading" | "ai" | "color">("idle");
   const [modelPct, setModelPct] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -104,62 +121,85 @@ export default function SearchPage() {
     }
   }
 
-  async function onFile(e: ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    const preview = URL.createObjectURL(f);
-    setImgPreview(preview);
-    setImgColor(null);
-    setAiResults(null);
-    setAiCategory(null);
+  async function runImageSearch(files: File[], previews: string[]) {
+    setAiIds(null);
+    setAiScores(null);
+    setAiCategories([]);
     setAiStatus("loading");
     setModelPct(0);
-    const queryColor = await dominantColorFromFile(f).catch(() => null);
 
-    // 1) strong backend (Jina) — used when JINA_API_KEY is configured on the server
-    const be = await backendImageSearch(f);
-    if (be && be.ids.length) {
-      setAiResults(be.ids);
-      setAiCategory(be.category);
-      setImgColor(queryColor);
-      // Do NOT hard-filter by the detected category — for visually similar
-      // garments (manto vs dress vs blouse) that label is unreliable; we rank
-      // by visual + color similarity instead and let the user narrow manually.
+    const colors = (await Promise.all(files.map((f) => dominantColorFromFile(f).catch(() => null)))).filter(
+      (c): c is string => Boolean(c),
+    );
+    const qc = avgHex(colors);
+    setImgColor(qc);
+
+    // 1) strong backend (Jina) — up to 3 images averaged
+    const be = await backendImageSearch(files);
+    if (be && be.results.length) {
+      setAiIds(be.results.map((r) => r.id));
+      setAiScores(new Map(be.results.map((r) => [r.id, r.score])));
+      setAiCategories(be.categories);
       setAiStatus("ai");
       return;
     }
 
-    // 2) fallback: on-device MobileCLIP
+    // 2) fallback: on-device MobileCLIP (first image only)
     try {
-      const ai = await searchByImageSrc(preview, queryColor, (p) => setModelPct(p));
+      const ai = await searchByImageSrc(previews[0], qc, (p) => setModelPct(p));
       if (ai && ai.ids.length) {
-        setAiResults(ai.ids);
-        setAiCategory(ai.category);
-        setImgColor(queryColor);
+        setAiIds(ai.ids);
+        setAiScores(null);
+        setAiCategories(ai.category ? [ai.category] : []);
         setAiStatus("ai");
         return;
       }
-      setImgColor(queryColor ?? "#888888");
       setAiStatus("color");
     } catch {
-      setImgColor(queryColor ?? "#888888");
       setAiStatus("color");
     }
   }
 
+  function onFiles(e: ChangeEvent<HTMLInputElement>) {
+    const list = e.target.files;
+    if (!list || !list.length) return;
+    const room = MAX_IMAGES - imgFiles.length;
+    const picked = Array.from(list).slice(0, room);
+    if (!picked.length) return;
+    const files = [...imgFiles, ...picked];
+    const previews = [...imgPreviews, ...picked.map((f) => URL.createObjectURL(f))];
+    setImgFiles(files);
+    setImgPreviews(previews);
+    if (fileRef.current) fileRef.current.value = "";
+    void runImageSearch(files, previews);
+  }
+
+  function removeImg(i: number) {
+    URL.revokeObjectURL(imgPreviews[i]);
+    const files = imgFiles.filter((_, j) => j !== i);
+    const previews = imgPreviews.filter((_, j) => j !== i);
+    setImgFiles(files);
+    setImgPreviews(previews);
+    if (files.length) void runImageSearch(files, previews);
+    else clearImage();
+  }
+
   function clearImage() {
+    imgPreviews.forEach((u) => URL.revokeObjectURL(u));
+    setImgFiles([]);
+    setImgPreviews([]);
     setImgColor(null);
-    setImgPreview(null);
-    setAiResults(null);
-    setAiCategory(null);
+    setAiIds(null);
+    setAiScores(null);
+    setAiCategories([]);
     setAiStatus("idle");
     if (fileRef.current) fileRef.current.value = "";
   }
 
   const results = useMemo(() => {
     let base: Product[];
-    if (mode === "image" && aiResults) {
-      base = aiResults.map(getProduct).filter((p): p is Product => Boolean(p));
+    if (mode === "image" && aiIds) {
+      base = aiIds.map(getProduct).filter((p): p is Product => Boolean(p));
     } else if (mode === "image" && imgColor) {
       base = productsByColor(imgColor);
     } else {
@@ -173,17 +213,18 @@ export default function SearchPage() {
       if (nearOnly && p.distance > NEAR_KM) return false;
       return true;
     });
+
     if (mode === "image") {
-      // blend shape (backend rank) with color proximity to the uploaded image,
-      // so e.g. a white-trousers photo surfaces white trousers first.
-      if (aiResults && imgColor) {
-        const rank = new Map(aiResults.map((id, i) => [id, i]));
-        const N = aiResults.length || 1;
-        list = [...list].sort((a, b) => {
-          const sa = 0.45 * (1 - (rank.get(a.id) ?? N) / N) + 0.55 * (1 - colorDistance(a.colorHex, imgColor) / 441);
-          const sb = 0.45 * (1 - (rank.get(b.id) ?? N) / N) + 0.55 * (1 - colorDistance(b.colorHex, imgColor) / 441);
-          return sb - sa;
-        });
+      if (aiIds) {
+        // rank by real similarity score (dominant) + a gentle color nudge
+        const N = aiIds.length || 1;
+        const rankOf = new Map(aiIds.map((id, i) => [id, i]));
+        const shapeScore = (id: number) => aiScores?.get(id) ?? 1 - (rankOf.get(id) ?? N) / N;
+        const colorSim = (hex: string) => (imgColor ? 1 - colorDistance(hex, imgColor) / 441 : 0);
+        list = [...list].sort(
+          (a, b) =>
+            0.8 * shapeScore(b.id) + 0.2 * colorSim(b.colorHex) - (0.8 * shapeScore(a.id) + 0.2 * colorSim(a.colorHex)),
+        );
       }
       list = list.slice(0, IMAGE_LIMIT);
     } else {
@@ -193,17 +234,17 @@ export default function SearchPage() {
       else if (sort === "cheap") list = [...list].sort((a, b) => a.price - b.price);
     }
     return list;
-  }, [q, mode, imgColor, aiResults, cat, channel, maxPrice, nearOnly, sort]);
+  }, [q, mode, imgColor, aiIds, aiScores, cat, channel, maxPrice, nearOnly, sort]);
 
   const summary =
     mode === "image"
       ? aiStatus === "ai"
-        ? "جستجوی تصویری با هوش مصنوعی"
-        : aiStatus === "color"
-          ? "جستجو با تصویر (بر اساس رنگ)"
-          : aiStatus === "loading"
-            ? "در حال تحلیل تصویر…"
-            : "یک عکس آپلود کن"
+        ? "شبیه‌ترین‌ها بر اساس تصویر و رنگ"
+        : aiStatus === "loading"
+          ? "در حال تحلیل تصویر…"
+          : aiStatus === "color"
+            ? "جستجو بر اساس رنگ"
+            : "تا ۳ عکس آپلود کن"
       : q.trim()
         ? `نتایج برای «${q.trim()}»`
         : "همه‌ی محصولات";
@@ -260,7 +301,7 @@ export default function SearchPage() {
               })}
             </div>
 
-            {/* TEXT mode */}
+            {/* TEXT */}
             {mode === "text" && (
               <div className="flex h-12 items-center gap-3 rounded-xl px-3" style={{ border: `1px solid ${C.border}` }}>
                 <Search size={19} style={{ color: C.teal }} aria-hidden />
@@ -287,7 +328,7 @@ export default function SearchPage() {
               </div>
             )}
 
-            {/* VOICE mode */}
+            {/* VOICE */}
             {mode === "voice" && (
               <div className="flex flex-col items-center gap-3 rounded-xl py-6" style={{ border: `1px solid ${C.border}` }}>
                 <button
@@ -313,57 +354,71 @@ export default function SearchPage() {
               </div>
             )}
 
-            {/* IMAGE mode */}
+            {/* IMAGE (up to 3) */}
             {mode === "image" && (
-              <div className="rounded-xl p-4" style={{ border: `1px solid ${C.border}` }}>
-                <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
-                {imgPreview ? (
-                  <div className="flex items-center gap-4">
-                    <img src={imgPreview} alt="نمونه" className="h-20 w-20 rounded-xl object-cover" />
-                    <div className="flex-1">
-                      {aiStatus === "loading" && (
-                        <div className="flex items-center gap-2 text-sm font-medium" style={{ color: C.indigo }}>
-                          <Sparkles size={16} style={{ color: C.teal }} aria-hidden />
-                          در حال تحلیل با هوش مصنوعی…{modelPct ? ` ${fa(modelPct)}٪` : ""}
+              <div className="rounded-xl p-3" style={{ border: `1px solid ${C.border}` }}>
+                <input ref={fileRef} type="file" accept="image/*" multiple onChange={onFiles} className="hidden" />
+                {imgPreviews.length ? (
+                  <div>
+                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                      {imgPreviews.map((src, i) => (
+                        <div key={i} className="relative">
+                          <img src={src} alt={`نمونه ${fa(i + 1)}`} className="h-16 w-16 rounded-lg object-cover" />
+                          <button
+                            onClick={() => removeImg(i)}
+                            aria-label="حذف"
+                            className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full text-white"
+                            style={{ background: "#b84040" }}
+                          >
+                            <X size={12} aria-hidden />
+                          </button>
                         </div>
-                      )}
-                      {aiStatus === "ai" && (
-                        <>
-                          <div className="flex flex-wrap items-center gap-2 text-sm font-medium" style={{ color: C.tealInk }}>
-                            <Sparkles size={16} aria-hidden />
-                            شبیه‌ترین محصولات بر اساس تصویر و رنگ
-                            {imgColor && (
-                              <span
-                                className="inline-block h-4 w-4 rounded-full"
-                                style={{ background: imgColor, border: `1px solid ${C.border}` }}
-                              />
-                            )}
-                          </div>
-                          <div className="mt-0.5 text-xs" style={{ color: C.muted }}>
-                            برای محدود کردن به یک نوع لباس، دسته را از فیلترها انتخاب کن.
-                          </div>
-                        </>
-                      )}
-                      {aiStatus === "color" && (
-                        <>
-                          <div className="mb-1 flex items-center gap-2 text-sm font-medium" style={{ color: C.indigo }}>
-                            رنگ غالب:
-                            {imgColor && (
-                              <span
-                                className="inline-block h-5 w-5 rounded-full"
-                                style={{ background: imgColor, border: `1px solid ${C.border}` }}
-                              />
-                            )}
-                          </div>
-                          <div className="text-xs" style={{ color: C.muted }}>
-                            بر اساس رنگ تطبیق دادیم.
-                          </div>
-                        </>
+                      ))}
+                      {imgFiles.length < MAX_IMAGES && (
+                        <button
+                          onClick={() => fileRef.current?.click()}
+                          className="flex h-16 w-16 flex-col items-center justify-center gap-1 rounded-lg text-xs"
+                          style={{ background: C.cream, border: `1px dashed ${C.border}`, color: C.teal }}
+                        >
+                          <Plus size={18} aria-hidden />
+                          افزودن
+                        </button>
                       )}
                     </div>
-                    <button onClick={clearImage} aria-label="حذف عکس" style={{ color: C.muted }}>
-                      <X size={18} aria-hidden />
-                    </button>
+
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs" style={{ color: C.muted }}>
+                        {aiStatus === "loading" && (
+                          <span className="flex items-center gap-1.5" style={{ color: C.indigo }}>
+                            <Sparkles size={14} style={{ color: C.teal }} aria-hidden />
+                            در حال تحلیل…{modelPct ? ` ${fa(modelPct)}٪` : ""}
+                          </span>
+                        )}
+                        {aiStatus === "ai" && aiCategories.length > 0 && (
+                          <span className="flex flex-wrap items-center gap-1.5">
+                            <Sparkles size={14} style={{ color: C.teal }} aria-hidden />
+                            شبیه:
+                            {aiCategories.map((c) => (
+                              <button
+                                key={c}
+                                onClick={() => setCat(cat === c ? "همه" : c)}
+                                className="rounded-full px-2 py-0.5 text-[11px] font-bold"
+                                style={{
+                                  background: cat === c ? C.teal : C.lightTeal,
+                                  color: cat === c ? "#fff" : C.tealInk,
+                                }}
+                              >
+                                {c}
+                              </button>
+                            ))}
+                          </span>
+                        )}
+                        {aiStatus === "color" && <span>بر اساس رنگ مرتب شد.</span>}
+                      </div>
+                      <button onClick={clearImage} className="text-xs font-bold" style={{ color: C.muted }}>
+                        پاک کردن
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <button
@@ -373,10 +428,10 @@ export default function SearchPage() {
                   >
                     <Upload size={24} style={{ color: C.teal }} aria-hidden />
                     <span className="text-sm font-medium" style={{ color: C.indigo }}>
-                      عکس لباس را آپلود کن
+                      عکس لباس را آپلود کن (تا ۳ عکس)
                     </span>
                     <span className="text-xs" style={{ color: C.muted }}>
-                      رنگش را می‌خوانیم و مشابه‌ها را می‌آوریم
+                      چند زاویه بفرست تا دقیق‌تر پیدا کنیم
                     </span>
                   </button>
                 )}

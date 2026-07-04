@@ -1,8 +1,7 @@
 // Vercel serverless function: AI search over the product catalog using Jina
 // jina-clip-v2 multimodal embeddings. The API key stays server-side (env var
-// JINA_API_KEY); it is never shipped to the browser. The catalog embeddings are
-// fetched at runtime from the deployment's own static /catalog.json (kept out of
-// the function bundle so the function stays small).
+// JINA_API_KEY); it is never shipped to the browser. Catalog embeddings are
+// fetched at runtime from the deployment's own static /catalog.json.
 const JINA = "https://api.jina.ai/v1/embeddings";
 const MODEL = "jina-clip-v2";
 
@@ -35,15 +34,24 @@ function l2(v: number[]): number[] {
   return v.map((x) => x / s);
 }
 
-async function embedQuery(input: unknown, key: string): Promise<number[]> {
+// Embed a batch of inputs ({text} or {image}) in one call, then average +
+// normalize into a single query vector (so a user can send up to 3 images).
+async function embedQuery(inputs: unknown[], key: string): Promise<number[]> {
   const r = await fetch(JINA, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-    body: JSON.stringify({ model: MODEL, input: [input] }),
+    body: JSON.stringify({ model: MODEL, input: inputs }),
   });
   const j = (await r.json()) as { data?: { embedding: number[] }[]; detail?: string };
-  if (!r.ok || !j.data) throw new Error(j?.detail || "embed failed");
-  return l2(j.data[0].embedding);
+  if (!r.ok || !j.data || !j.data.length) throw new Error(j?.detail || "embed failed");
+  const dim = j.data[0].embedding.length;
+  const mean = new Array(dim).fill(0);
+  for (const d of j.data) {
+    const v = l2(d.embedding);
+    for (let i = 0; i < dim; i++) mean[i] += v[i];
+  }
+  for (let i = 0; i < dim; i++) mean[i] /= j.data.length;
+  return l2(mean);
 }
 
 export default async function handler(req: any, res: any) {
@@ -64,36 +72,44 @@ export default async function handler(req: any, res: any) {
     }
 
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
-    const { mode, q, image } = body as { mode?: string; q?: string; image?: string };
+    const { mode, q, image, images } = body as {
+      mode?: string;
+      q?: string;
+      image?: string;
+      images?: string[];
+    };
 
-    let input: unknown;
-    if (mode === "image" && image) input = { image };
-    else if (q && q.trim()) input = { text: q.trim() };
-    else {
+    let inputs: unknown[];
+    if (mode === "image") {
+      const imgs = (Array.isArray(images) && images.length ? images : image ? [image] : []).slice(0, 3);
+      if (!imgs.length) {
+        res.status(400).json({ error: "empty" });
+        return;
+      }
+      inputs = imgs.map((x) => ({ image: x }));
+    } else if (q && q.trim()) {
+      inputs = [{ text: q.trim() }];
+    } else {
       res.status(400).json({ error: "empty" });
       return;
     }
 
-    const qv = await embedQuery(input, key);
+    const qv = await embedQuery(inputs, key);
 
-    let category: string | null = null;
-    if (mode === "image" && prototypes.length) {
-      let best = -Infinity;
-      for (const p of prototypes) {
-        const s = cos(qv, p.vec);
-        if (s > best) {
-          best = s;
-          category = p.category;
-        }
-      }
-    }
+    // top categories by prototype similarity — a SOFT hint (no hard filter)
+    const categories = prototypes
+      .map((p) => ({ category: p.category, score: cos(qv, p.vec) }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .map((c) => c.category);
 
-    const ranked = items
+    // rank by real similarity score (this is the strong signal)
+    const results = items
       .map((it) => ({ id: it.id, score: cos(qv, it.vec) }))
       .sort((a, b) => b.score - a.score)
       .slice(0, 40);
 
-    res.status(200).json({ category, results: ranked });
+    res.status(200).json({ category: categories[0] ?? null, categories, results });
   } catch (e) {
     res.status(500).json({ error: String((e as Error)?.message || e) });
   }

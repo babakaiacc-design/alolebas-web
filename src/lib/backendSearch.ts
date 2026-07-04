@@ -3,7 +3,8 @@
  * failure (missing key, offline, error) so the caller can fall back to the
  * on-device engine — the site never breaks.
  */
-export type BackendResult = { category: string | null; ids: number[] };
+export type Scored = { id: number; score: number };
+export type BackendResult = { category: string | null; categories: string[]; results: Scored[] };
 
 async function post(payload: unknown): Promise<BackendResult | null> {
   try {
@@ -13,9 +14,13 @@ async function post(payload: unknown): Promise<BackendResult | null> {
       body: JSON.stringify(payload),
     });
     if (!r.ok) return null;
-    const j = (await r.json()) as { category?: string | null; results?: { id: number }[] };
+    const j = (await r.json()) as {
+      category?: string | null;
+      categories?: string[];
+      results?: Scored[];
+    };
     if (!j.results) return null;
-    return { category: j.category ?? null, ids: j.results.map((x) => x.id) };
+    return { category: j.category ?? null, categories: j.categories ?? [], results: j.results };
   } catch {
     return null;
   }
@@ -47,14 +52,17 @@ export function fileToBase64(file: File, max = 256): Promise<string> {
   });
 }
 
-export async function backendImageSearch(file: File): Promise<BackendResult | null> {
-  let image: string;
+/** Up to 3 images — averaged server-side into one query vector. */
+export async function backendImageSearch(files: File[]): Promise<BackendResult | null> {
+  const some = files.slice(0, 3);
+  if (!some.length) return null;
+  let images: string[];
   try {
-    image = await fileToBase64(file);
+    images = await Promise.all(some.map((f) => fileToBase64(f)));
   } catch {
     return null;
   }
-  return post({ mode: "image", image });
+  return post({ mode: "image", images });
 }
 
 export async function backendTextSearch(q: string): Promise<BackendResult | null> {
