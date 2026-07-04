@@ -122,7 +122,9 @@ export default function SearchPage() {
       setAiResults(be.ids);
       setAiCategory(be.category);
       setImgColor(queryColor);
-      if (be.category) setCat(be.category);
+      // Do NOT hard-filter by the detected category — for visually similar
+      // garments (manto vs dress vs blouse) that label is unreliable; we rank
+      // by visual + color similarity instead and let the user narrow manually.
       setAiStatus("ai");
       return;
     }
@@ -134,7 +136,6 @@ export default function SearchPage() {
         setAiResults(ai.ids);
         setAiCategory(ai.category);
         setImgColor(queryColor);
-        setCat(ai.category ?? "همه");
         setAiStatus("ai");
         return;
       }
@@ -330,15 +331,7 @@ export default function SearchPage() {
                         <>
                           <div className="flex flex-wrap items-center gap-2 text-sm font-medium" style={{ color: C.tealInk }}>
                             <Sparkles size={16} aria-hidden />
-                            تشخیص هوش مصنوعی:
-                            {aiCategory && (
-                              <span
-                                className="rounded-full px-2 py-0.5 text-xs font-bold"
-                                style={{ background: C.lightTeal, color: C.tealInk }}
-                              >
-                                {aiCategory}
-                              </span>
-                            )}
+                            شبیه‌ترین محصولات بر اساس تصویر و رنگ
                             {imgColor && (
                               <span
                                 className="inline-block h-4 w-4 rounded-full"
@@ -347,7 +340,7 @@ export default function SearchPage() {
                             )}
                           </div>
                           <div className="mt-0.5 text-xs" style={{ color: C.muted }}>
-                            بر اساس رنگ عکس مرتب شد. اگر نوع لباس درست تشخیص داده نشده، دسته را از فیلترها عوض کن.
+                            برای محدود کردن به یک نوع لباس، دسته را از فیلترها انتخاب کن.
                           </div>
                         </>
                       )}
