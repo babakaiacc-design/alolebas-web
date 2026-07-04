@@ -11,6 +11,8 @@ import {
   searchProducts,
   productsByColor,
   getProduct,
+  colorDistance,
+  parseColor,
   type Product,
 } from "../data/products";
 import { dominantColorFromFile } from "../lib/imageColor";
@@ -171,9 +173,22 @@ export default function SearchPage() {
       return true;
     });
     if (mode === "image") {
+      // blend shape (backend rank) with color proximity to the uploaded image,
+      // so e.g. a white-trousers photo surfaces white trousers first.
+      if (aiResults && imgColor) {
+        const rank = new Map(aiResults.map((id, i) => [id, i]));
+        const N = aiResults.length || 1;
+        list = [...list].sort((a, b) => {
+          const sa = 0.45 * (1 - (rank.get(a.id) ?? N) / N) + 0.55 * (1 - colorDistance(a.colorHex, imgColor) / 441);
+          const sb = 0.45 * (1 - (rank.get(b.id) ?? N) / N) + 0.55 * (1 - colorDistance(b.colorHex, imgColor) / 441);
+          return sb - sa;
+        });
+      }
       list = list.slice(0, IMAGE_LIMIT);
     } else {
-      if (sort === "near") list = [...list].sort((a, b) => a.distance - b.distance);
+      const tc = parseColor(q);
+      if (tc) list = [...list].sort((a, b) => colorDistance(a.colorHex, tc) - colorDistance(b.colorHex, tc));
+      else if (sort === "near") list = [...list].sort((a, b) => a.distance - b.distance);
       else if (sort === "cheap") list = [...list].sort((a, b) => a.price - b.price);
     }
     return list;

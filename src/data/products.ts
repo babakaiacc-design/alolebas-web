@@ -59,6 +59,39 @@ export function searchProducts(q: string): Product[] {
   });
 }
 
+/** Persian color words → representative hex, for color-aware search. */
+export const COLOR_WORDS: Record<string, string> = {
+  "سفید": "#f5f5f2",
+  "مشکی": "#1c1c1c",
+  "سیاه": "#1c1c1c",
+  "آبی": "#2f4a7a",
+  "سرمه‌ای": "#1b2a4a",
+  "سرمه ای": "#1b2a4a",
+  "سبز": "#4b7a4a",
+  "قرمز": "#b23b3b",
+  "سرخ": "#b23b3b",
+  "زرد": "#d9c24a",
+  "طوسی": "#8a8f98",
+  "خاکستری": "#8a8f98",
+  "کرم": "#e7dcc4",
+  "قهوه‌ای": "#5a3a22",
+  "قهوه ای": "#5a3a22",
+  "صورتی": "#d68aa0",
+  "بنفش": "#6b4a8a",
+  "نارنجی": "#d07a2f",
+  "شرابی": "#6e2033",
+  "طلایی": "#c8963e",
+  "نقره‌ای": "#c9ccd1",
+  "خاکی": "#9a8663",
+  "بژ": "#d8c7a8",
+  "زرشکی": "#7a2233",
+};
+
+export function parseColor(q: string): string | null {
+  for (const [w, hex] of Object.entries(COLOR_WORDS)) if (q.includes(w)) return hex;
+  return null;
+}
+
 export function hexToRgb(hex: string): [number, number, number] {
   const h = hex.replace("#", "");
   return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
