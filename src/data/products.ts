@@ -18,7 +18,12 @@ export type Product = {
   ratingCount: number;
   minOrder?: string; // for wholesale
   altColors?: string[]; // extra swatch hexes for the gallery
-  image?: string; // real product photo path
+  image?: string; // real product photo path (or absolute URL for external)
+  // external-store products (from connected shops via Torob):
+  url?: string; // outbound link to the store product page
+  shop?: string; // store name
+  priceText?: string; // pre-formatted price from the store
+  external?: boolean;
 };
 
 export const CATEGORIES = ["همه", ...Array.from(new Set(PRODUCTS.map((p) => p.category)))];

@@ -19,6 +19,7 @@ import {
 import { dominantColorFromFile } from "../lib/imageColor";
 import { searchByImageSrc } from "../lib/visualSearch";
 import { backendImageSearch } from "../lib/backendSearch";
+import { loadExternal } from "../data/external";
 
 const MODES = [
   { id: "text", label: "متنی", icon: Search },
@@ -63,6 +64,7 @@ export default function SearchPage() {
   const [aiCategories, setAiCategories] = useState<string[]>([]);
   const [aiStatus, setAiStatus] = useState<"idle" | "loading" | "ai" | "color">("idle");
   const [modelPct, setModelPct] = useState(0);
+  const [extMap, setExtMap] = useState<Map<number, Product> | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // filters
@@ -75,6 +77,7 @@ export default function SearchPage() {
   useEffect(() => {
     document.title = "جستجو | الولباس";
     window.scrollTo(0, 0);
+    loadExternal().then(setExtMap);
     if ((params.get("mode") as Mode) === "voice") startVoice();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -198,9 +201,10 @@ export default function SearchPage() {
   }
 
   const results = useMemo(() => {
+    const resolve = (id: number) => (id >= 1000 ? extMap?.get(id) : getProduct(id));
     let base: Product[];
     if (mode === "image" && aiIds) {
-      base = aiIds.map(getProduct).filter((p): p is Product => Boolean(p));
+      base = aiIds.map(resolve).filter((p): p is Product => Boolean(p));
     } else if (mode === "image" && imgColor) {
       base = productsByColor(imgColor);
     } else {
@@ -237,7 +241,7 @@ export default function SearchPage() {
       else if (sort === "cheap") list = [...list].sort((a, b) => a.price - b.price);
     }
     return list;
-  }, [q, mode, imgColor, aiIds, aiScores, cat, channel, maxPrice, nearOnly, sort]);
+  }, [q, mode, imgColor, aiIds, aiScores, extMap, cat, channel, maxPrice, nearOnly, sort]);
 
   const summary =
     mode === "image"
