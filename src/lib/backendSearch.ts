@@ -26,23 +26,32 @@ async function post(payload: unknown): Promise<BackendResult | null> {
   }
 }
 
-/** Downscale a File to a small JPEG base64 (keeps token cost + upload low). */
-export function fileToBase64(file: File, max = 256): Promise<string> {
+/**
+ * Prepare an uploaded photo for embedding: CENTER-CROP to drop the cluttered
+ * edges (wardrobe/wall/hanger that pollute the match) and downscale to a small
+ * JPEG base64. The garment is almost always centered, so keeping the central
+ * ~82% removes most background while preserving the clothing.
+ */
+export function fileToBase64(file: File, max = 384, cropFrac = 0.82): Promise<string> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
-      const scale = Math.min(1, max / Math.max(img.width, img.height));
-      const w = Math.max(1, Math.round(img.width * scale));
-      const h = Math.max(1, Math.round(img.height * scale));
+      const cw = img.width * cropFrac;
+      const ch = img.height * cropFrac;
+      const sx = (img.width - cw) / 2;
+      const sy = (img.height - ch) / 2;
+      const scale = Math.min(1, max / Math.max(cw, ch));
+      const w = Math.max(1, Math.round(cw * scale));
+      const h = Math.max(1, Math.round(ch * scale));
       const c = document.createElement("canvas");
       c.width = w;
       c.height = h;
       const ctx = c.getContext("2d");
       URL.revokeObjectURL(url);
       if (!ctx) return reject(new Error("no ctx"));
-      ctx.drawImage(img, 0, 0, w, h);
-      resolve(c.toDataURL("image/jpeg", 0.8).split(",")[1]);
+      ctx.drawImage(img, sx, sy, cw, ch, 0, 0, w, h);
+      resolve(c.toDataURL("image/jpeg", 0.85).split(",")[1]);
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);
